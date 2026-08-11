@@ -39,8 +39,7 @@ def sitemap():
 @app.route('/user', methods=['GET'])
 def handle_hello():
     users = User.query.all()
-    print(users)
-    return jsonify(user.serialize() for user in users), 200
+    return jsonify([user.serialize() for user in users]), 200
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':

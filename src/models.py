@@ -1,10 +1,22 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import String, Boolean, Column, ForeignKey, Integer, DateTime
+from sqlalchemy import String, Boolean, Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
 
 db = SQLAlchemy()
 
+favorite_planet = Table(
+    "favorite_planet",
+    db.metadata,
+    Column("user_id", ForeignKey("user.id"), primary_key=True),
+    Column("planet_id", ForeignKey("planet.id"), primary_key=True)
+)
+
+favorite_character = Table(
+    "favorite_character",
+    db.metadata,
+    Column("user_id", ForeignKey("user.id"), primary_key=True),
+    Column("character_id", ForeignKey("character.id"), primary_key=True)
+)
 
 class User(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -13,9 +25,9 @@ class User(db.Model):
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     firstname: Mapped[str] = mapped_column(String(80), nullable=False)
     lastname: Mapped[str] = mapped_column(String(80), nullable=False)
-    subscription_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.timezone.utc)
 
-    favorites: Mapped[list["Favorite"]] = relationship("Favorite", back_populates="user")
+    favorite_planets: Mapped[list["Planet"]] = relationship("Planet", secondary=favorite_planet, back_populates="favorited_by_users")
+    favorite_characters: Mapped[list["Character"]] = relationship("Character", secondary=favorite_character, back_populates="favorited_by_users")
 
     def serialize(self):
         return {
@@ -24,9 +36,8 @@ class User(db.Model):
             "firstname": self.firstname,
             "lastname": self.lastname,
             "is_active": self.is_active,
-            "subscription_date": self.subscription_date.isoformat(),
-            "favorites": [fav.serialize() for fav in self.favorites]
-            # do not serialize the password, its a security breach
+            "favorite_planets": [p.serialize() for p in self.favorite_planets],
+            "favorite_characters": [c.serialize() for c in self.favorite_characters]
         }
 
 
@@ -37,7 +48,7 @@ class Character(db.Model):
     hair_color: Mapped[str] = mapped_column(String(30))
     birth_year: Mapped[str] = mapped_column(String(20))
 
-    favorited_by: Mapped[list["Favorite"]] = relationship("Favorite", back_populates="character")
+    favorited_by_users: Mapped[list["User"]] = relationship("User", secondary=favorite_character, back_populates="favorite_characters")
 
     def serialize(self):
         return {
@@ -56,7 +67,7 @@ class Planet(db.Model):
     terrain: Mapped[str] = mapped_column(String(50))
     population: Mapped[str] = mapped_column(String(30))
 
-    favorited_by: Mapped[list["Favorite"]] = relationship("Favorite", back_populates="planet")
+    favorited_by_users: Mapped[list["User"]] = relationship("User", secondary=favorite_planet, back_populates="favorite_planets")
 
     def serialize(self):
         return {
@@ -65,24 +76,4 @@ class Planet(db.Model):
             "climate": self.climate,
             "terrain": self.terrain,
             "population": self.population,
-        }
-
-
-class Favorite(db.Model):
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    planet_id: Mapped[int] = mapped_column(ForeignKey("planet.id"), nullable=True)
-    character_id: Mapped[int] = mapped_column(ForeignKey("character.id"), nullable=True)
-
-    user: Mapped["User"] = relationship("User", back_populates="favorites")
-    planet: Mapped["Planet"] = relationship("Planet", back_populates="favorited_by")
-    character: Mapped["Character"] = relationship("Character", back_populates="favorited_by")
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "planet": self.planet.serialize() if self.planet else None,
-            "character": self.character.serialize() if self.character else None,
         }
